@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" fill="none">
+  <defs>
+    <linearGradient id="agyCtxGrad" x1="16" y1="16" x2="112" y2="112" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#3B82F6"/>
+      <stop offset="50%" stop-color="#6366F1"/>
+      <stop offset="100%" stop-color="#06B6D4"/>
+    </linearGradient>
+  </defs>
+  <!-- Outer lens ring with ~10% margin -->
+  <circle cx="64" cy="64" r="46" stroke="url(#agyCtxGrad)" stroke-width="8" fill="none"/>
+  <!-- Stacked context composition bars inside the lens -->
+  <rect x="34" y="42" width="60" height="10" rx="5" fill="#3B82F6"/>
+  <rect x="34" y="59" width="44" height="10" rx="5" fill="#6366F1"/>
+  <rect x="82" y="59" width="12" height="10" rx="5" fill="#10B981"/>
+  <rect x="34" y="76" width="28" height="10" rx="5" fill="#F59E0B"/>
+  <rect x="66" y="76" width="28" height="10" rx="5" fill="#06B6D4"/>
+</svg>

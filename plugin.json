@@ -1,0 +1,12 @@
+{
+  "name": "agy-context",
+  "displayName": "AGY 上下文洞察",
+  "version": "0.1.0",
+  "description": "Antigravity 上下文洞察插件：透视上下文组成与演进、Token 与费用统计、文件与命令活动，以及多 Agent 编队协作。",
+  "logo": "assets/logo.svg",
+  "suggestedPrompts": [
+    "打开 AGY 上下文洞察面板查看全部会话",
+    "分析当前会话的上下文构成、Token 消耗与压缩事件",
+    "查看多 Agent 编队网络与跨 Agent 协作时间线"
+  ]
+}

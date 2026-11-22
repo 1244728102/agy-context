@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AGY 上下文洞察</title>
+<style>
+  :root {
+    --bg-1: var(--color-background-primary, #0a0f1c);
+    --bg-2: var(--color-background-secondary, #111827);
+    --bg-3: var(--color-background-tertiary, #182235);
+    --fg-1: var(--color-text-primary, #e5e7eb);
+    --fg-2: var(--color-text-secondary, #94a3b8);
+    --fg-3: var(--color-text-tertiary, #64748b);
+    --bd-1: var(--color-border-primary, #1f2b42);
+    --bd-2: var(--color-border-secondary, #192338);
+    --accent: #3b82f6;
+    --green: #10b981;
+    --c-sys: #3b82f6;
+    --c-tools: #f59e0b;
+    --c-user: #10b981;
+    --c-inj: #a855f7;
+    --c-skill: #ec4899;
+    --c-asst: #06b6d4;
+    --c-toolres: #22c55e;
+    --c-out: #8b5cf6;
+    --font: var(--font-sans, "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, sans-serif);
+    --mono: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 0; background: var(--bg-1); color: var(--fg-1);
+    font-family: var(--font); font-size: 12.5px; line-height: 1.45;
+  }
+  .app { display: flex; flex-direction: column; min-height: 100vh; }
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 10px; padding: 10px 16px; background: var(--bg-2);
+    border-bottom: 1px solid var(--bd-1); position: sticky; top: 0; z-index: 20; flex-wrap: wrap;
+  }
+  .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; }
+  .badge {
+    font-size: 11px; padding: 2px 7px; border-radius: 999px;
+    background: var(--bg-3); color: var(--fg-2); border: 1px solid var(--bd-1);
+    font-weight: 500;
+  }
+  .tabs { display: flex; gap: 4px; background: var(--bg-1); padding: 3px; border-radius: 8px; border: 1px solid var(--bd-1); }
+  .tab {
+    background: transparent; border: none; color: var(--fg-2);
+    padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;
+  }
+  .tab:hover { color: var(--fg-1); }
+  .tab.active { background: var(--bg-3); color: var(--fg-1); }
+  .controls { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  select, input[type="text"], button.btn {
+    background: var(--bg-3); color: var(--fg-1); border: 1px solid var(--bd-1);
+    border-radius: 6px; padding: 4px 9px; font-size: 12px; font-family: inherit;
+  }
+  button.btn { cursor: pointer; font-weight: 500; }
+  button.btn:hover { border-color: var(--accent); }
+  button.btn.active { background: rgba(59,130,246,0.2); border-color: var(--accent); color: #fff; }
+  .pill-group { display: inline-flex; background: var(--bg-1); border: 1px solid var(--bd-1); border-radius: 6px; padding: 2px; gap: 2px; }
+  .pill {
+    background: transparent; border: none; color: var(--fg-2); padding: 3px 9px;
+    border-radius: 4px; cursor: pointer; font-size: 11.5px; font-weight: 500;
+  }
+  .pill.active { background: var(--bg-3); color: var(--fg-1); }
+  .main { padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; max-width: 1460px; width: 100%; margin: 0 auto; }
+
+  .card {
+    background: var(--bg-2); border: 1px solid var(--bd-1); border-radius: 10px;
+    padding: 12px 14px; display: flex; flex-direction: column; gap: 10px;
+  }
+  .card-hd { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+  .card-title { font-weight: 600; font-size: 13px; color: var(--fg-1); }
+  .card-sub { font-size: 11px; color: var(--fg-2); }
+
+  /* DSH-style Overview Grids */
+  .ov-top { display: grid; grid-template-columns: 1.05fr 1.15fr; gap: 12px; }
+  .kpi-3x2 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .kpi-box {
+    background: var(--bg-2); border: 1px solid var(--bd-1); border-radius: 10px;
+    padding: 11px 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 3px;
+  }
+  .kpi-lbl { font-size: 11px; color: var(--fg-2); }
+  .kpi-val { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--fg-1); }
+  .kpi-sub { font-size: 10.5px; color: var(--fg-3); }
+
+  .ov-mid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .donut-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .donut-legend { flex: 1; display: grid; grid-template-columns: repeat(3, minmax(110px, 1fr)); gap: 8px 12px; }
+  .dl-item { display: flex; flex-direction: column; gap: 1px; font-size: 11.5px; }
+  .dl-top { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
+  .dl-left { display: flex; align-items: center; gap: 5px; color: var(--fg-1); white-space: nowrap; }
+  .dl-right { color: var(--fg-2); font-variant-numeric: tabular-nums; font-size: 11px; }
+  .dl-sub { padding-left: 13px; color: var(--fg-3); font-size: 10.5px; font-variant-numeric: tabular-nums; }
+  .dot { width: 8px; height: 8px; border-radius: 2px; display: inline-block; flex-shrink: 0; }
+
+  .ov-body { display: grid; grid-template-columns: 280px 1fr; gap: 12px; align-items: start; }
+  .ov-side { display: flex; flex-direction: column; gap: 12px; }
+  .hm-wrap { display: grid; grid-template-columns: 28px 1fr; gap: 4px; align-items: center; }
+  .hm-days { display: grid; grid-template-rows: repeat(7, 1fr); gap: 3px; font-size: 10px; color: var(--fg-3); text-align: right; padding-right: 4px; }
+  .heatmap { display: grid; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(7, 1fr); grid-auto-flow: column; gap: 3px; }
+  .hm-cell { aspect-ratio: 1; border-radius: 3px; background: var(--bg-3); border: 1px solid var(--bd-2); cursor: pointer; }
+  .hm-cell.sel { outline: 2px solid var(--accent); }
+
+  .skill-list { display: flex; flex-direction: column; gap: 4px; max-height: 240px; overflow-y: auto; }
+  .skill-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 5px 8px; border-radius: 6px; background: var(--bg-3); border: 1px solid transparent; cursor: pointer;
+    font-size: 11.5px;
+  }
+  .skill-row:hover, .skill-row.active { border-color: var(--accent); background: rgba(59,130,246,0.14); }
+
+  .session-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
+  .s-card {
+    background: var(--bg-2); border: 1px solid var(--bd-1); border-radius: 10px;
+    padding: 11px 13px; cursor: pointer; display: flex; flex-direction: column; gap: 8px;
+    transition: border-color 0.15s, transform 0.1s;
+  }
+  .s-card:hover { border-color: var(--accent); }
+  .s-card-hd { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+  .s-title { font-weight: 600; font-size: 13px; color: var(--fg-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .s-time { font-size: 10.5px; color: var(--fg-3); text-align: right; white-space: nowrap; }
+  .s-mid { display: flex; align-items: center; gap: 12px; }
+  .s-metrics { flex: 1; display: flex; flex-direction: column; gap: 3px; font-size: 11.5px; }
+  .s-mrow { display: flex; justify-content: space-between; color: var(--fg-2); }
+  .s-mrow b { color: var(--fg-1); font-variant-numeric: tabular-nums; }
+  .s-last { font-size: 11px; color: var(--fg-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-top: 1px solid var(--bd-2); padding-top: 6px; }
+
+  .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 12px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+  .grid-kpi { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+  .stack-bar { height: 16px; border-radius: 6px; overflow: hidden; display: flex; background: var(--bg-3); border: 1px solid var(--bd-1); }
+  .stack-seg { height: 100%; }
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; font-size: 11px; color: var(--fg-2); }
+  .legend-item { display: inline-flex; align-items: center; gap: 5px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 5px; }
+  .chip {
+    font-size: 11px; padding: 2px 8px; border-radius: 999px;
+    background: var(--bg-3); border: 1px solid var(--bd-1); color: var(--fg-2);
+    cursor: pointer; display: inline-flex; align-items: center; gap: 5px;
+  }
+  .chip:hover, .chip.active { border-color: var(--accent); color: var(--fg-1); background: rgba(59,130,246,0.16); }
+  .meta-row { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--fg-2); gap: 8px; }
+  .table-wrap { overflow-x: auto; max-height: 360px; overflow-y: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--bd-2); vertical-align: top; }
+  th { color: var(--fg-2); font-weight: 600; position: sticky; top: 0; background: var(--bg-2); }
+  .mono { font-family: var(--mono); font-size: 11.5px; }
+  .ok { color: #10b981; } .err { color: #ef4444; } .warn { color: #f59e0b; }
+  .step-brief { background: var(--bg-3); border: 1px solid var(--bd-1); border-radius: 8px; padding: 9px 11px; font-size: 12px; display: flex; flex-direction: column; gap: 4px; }
+  .dna-item { border: 1px solid var(--bd-1); border-radius: 6px; background: var(--bg-3); padding: 7px 10px; margin-bottom: 6px; }
+  .dna-hd { display: flex; justify-content: space-between; align-items: center; gap: 8px; cursor: pointer; }
+  .dna-body { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--bd-2); white-space: pre-wrap; word-break: break-word; font-family: var(--mono); font-size: 11px; max-height: 260px; overflow-y: auto; color: var(--fg-2); }
+  .fleet-grid { display: flex; flex-wrap: wrap; gap: 10px; }
+  .agent-card { flex: 1 1 260px; max-width: 360px; background: var(--bg-3); border: 1px solid var(--bd-1); border-radius: 8px; padding: 10px 12px; cursor: pointer; display: flex; flex-direction: column; gap: 6px; }
+  .agent-card.current { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .timeline-row { display: flex; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--bd-2); font-size: 12px; }
+  .empty { padding: 24px; text-align: center; color: var(--fg-2); }
+  svg text { fill: var(--fg-2); font-family: var(--font); font-size: 10px; }
+
+  @media (max-width: 900px) {
+    .ov-top, .ov-mid, .ov-body { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <div class="brand">
+      <span>上下文洞察</span>
+      <span class="badge" id="status-badge">v0.1.0</span>
+    </div>
+    <div class="tabs">
+      <button class="tab active" data-tab="insights">上下文洞察</button>
+      <button class="tab" data-tab="session">上下文</button>
+      <button class="tab" data-tab="fleet">编队</button>
+    </div>
+    <div class="controls">
+      <span class="badge" id="date-range-badge">-- → --</span>
+      <div class="pill-group" id="days-group">
+        <button class="pill" data-days="1">今天</button>
+        <button class="pill active" data-days="7">近 7 天</button>
+        <button class="pill" data-days="30">近 30 天</button>
+        <button class="pill" data-days="0">全部</button>
+      </div>
+      <select id="session-select" title="选择会话" style="max-width:190px"></select>
+      <button class="btn" id="refresh-btn">刷新</button>
+    </div>
+  </div>
+
+  <div class="main" id="main-view">
+    <div class="empty">正在连接 AGY 上下文洞察服务...</div>
+  </div>
+</div>
+
+<script type="module">
+/*__EXT_APPS_SDK__*/
+
+const app = new App({ name: 'AGY 上下文洞察', version: '0.1.0' }, {});
+const USD_TO_CNY = 7.20;
+
+const state = {
+  tab: 'insights',
+  days: 7,
+  overview: null,
+  session: null,
+  fleet: null,
+  stepDetail: null,
+  selectedConvId: null,
+  selectedStepIdx: null,
+  trendGranularity: 'step',
+  trendMode: 'total',
+  trendOverview: false,
+  browserSearch: '',
+  eventFilter: 'all',
+  fileFilter: 'all',
+  fileSearch: '',
+  cmdFilter: '',
+  heatmapDate: null,
+  heatmapMetric: 'billed',
+  insightFilter: null,
+  wsFilter: 'all',
+  sessionSort: 'recent',
+  sessionSearch: '',
+  skillSort: 'count',
+  skillSearch: '',
+  fleetOrder: 'asc',
+  fleetAgentFilter: null,
+};
+
+const COMP_8 = [
+  { key: 'system', label: '系统提示词', color: '#3b82f6' },
+  { key: 'tools', label: '工具定义', color: '#f59e0b' },
+  { key: 'user', label: '用户消息', color: '#10b981' },
+  { key: 'injected', label: '注入内容', color: '#a855f7' },
+  { key: 'skills', label: '技能注入', color: '#ec4899' },
+  { key: 'assistant', label: '助手消息', color: '#06b6d4' },
+  { key: 'tool_results', label: '工具结果', color: '#22c55e' },
+  { key: 'output', label: '输出', color: '#8b5cf6' },
+];
+
+const CAT_6 = [
+  { key: 'system_tools', label: '系统与工具', color: 'var(--c-sys)' },
+  { key: 'user', label: '用户输入', color: 'var(--c-user)' },
+  { key: 'skills', label: '技能注入', color: 'var(--c-skill)' },
+  { key: 'injected', label: '注入上下文', color: 'var(--c-inj)' },
+  { key: 'assistant', label: '助手消息', color: 'var(--c-asst)' },
+  { key: 'tool_results', label: '工具结果', color: 'var(--c-toolres)' },
+];
+
+const EVENT_LABELS = {
+  all: '全部', compaction: '压缩', model_switch: '切换模型',
+  subagent: '子智能体', skill: '技能', system: '系统', error: '错误',
+};
+
+const fmtNum = (n) => {
+  n = Number(n || 0);
+  if (Math.abs(n) >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+  if (Math.abs(n) >= 1e3) return (n / 1e3).toFixed(1) + 'k';
+  return String(Math.round(n));
+};
+const fmtCny = (usd) => '¥' + (Number(usd || 0) * USD_TO_CNY).toFixed(2);
+const fmtDur = (ms) => {
+  const s = Math.round((ms || 0) / 1000);
+  if (s < 60) return s + 's';
+  const m = Math.floor(s / 60), rem = s % 60;
+  if (m < 60) return m + 'm' + (rem ? rem + 's' : '');
+  const h = Math.floor(m / 60), rm = m % 60;
+  return h + 'h' + (rm ? rm + 'm' : '');
+};
+const fmtRel = (iso) => {
+  if (!iso) return '';
+  const diff = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (diff < 60) return '刚刚';
+  if (diff < 3600) return Math.floor(diff / 60) + ' 分钟前';
+  if (diff < 86400) return Math.floor(diff / 3600) + ' 小时前';
+  return Math.floor(diff / 86400) + ' 天前';
+};
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+function applyTheme(ctx) {
+  if (ctx?.theme) applyDocumentTheme(ctx.theme);
+  if (ctx?.styles?.variables) applyHostStyleVariables(ctx.styles.variables);
+}
+
+app.onhostcontextchanged = applyTheme;
+
+app.ontoolinput = (params) => {
+  const args = params?.arguments || {};
+  if (args.view && ['insights', 'session', 'fleet'].includes(args.view)) state.tab = args.view;
+  if (args.conversation_id) state.selectedConvId = args.conversation_id;
+  updateTabs();
+};
+
+app.ontoolresult = (result) => {
+  const sc = result?.structuredContent;
+  if (!sc) return;
+  if (sc.view) state.tab = sc.view;
+  if (sc.overview) state.overview = sc.overview;
+  if (sc.session) {
+    state.session = sc.session;
+    state.selectedConvId = sc.session.id;
+    const steps = sc.session.steps || [];
+    state.selectedStepIdx = steps.length ? steps[steps.length - 1].step : null;
+  }
+  if (sc.fleet) state.fleet = sc.fleet;
+  if (!state.selectedConvId && state.overview?.sessions?.length) {
+    state.selectedConvId = state.overview.sessions[0].id;
+  }
+  populateSessionSelect();
+  updateTabs();
+  render();
+};
+
+async function callAppTool(name, args = {}) {
+  const res = await app.callServerTool({ name, arguments: args });
+  return res?.structuredContent || {};
+}
+
+async function loadOverview(days = state.days) {
+  state.days = days;
+  updateDaysPills();
+  setStatus('加载中...');
+  const sc = await callAppTool('app_get_overview', { days });
+  state.overview = sc.overview;
+  if (!state.selectedConvId && state.overview?.sessions?.length) {
+    state.selectedConvId = state.overview.sessions[0].id;
+  }
+  populateSessionSelect();
+  setStatus('v0.1.0');
+  render();
+}
+
+async function loadSession(convId) {
+  if (!convId) return;
+  state.selectedConvId = convId;
+  state.stepDetail = null;
+  setStatus('加载会话...');
+  const sc = await callAppTool('app_get_session', { conversation_id: convId });
+  state.session = sc.session;
+  const steps = sc.session?.steps || [];
+  state.selectedStepIdx = steps.length ? steps[steps.length - 1].step : null;
+  populateSessionSelect();
+  setStatus('v0.1.0');
+  render();
+}
+
+async function loadFleet(convId) {
+  setStatus('加载编队...');
+  const sc = await callAppTool('app_get_fleet', { conversation_id: convId || state.selectedConvId });
+  state.fleet = sc.fleet;
+  setStatus('v0.1.0');
+  render();
+}
+
+async function loadStepDetail(convId, stepIndex) {
+  setStatus(`加载步骤 #${stepIndex}...`);
+  const sc = await callAppTool('app_get_step_detail', { conversation_id: convId, step_index: stepIndex });
+  state.stepDetail = sc.detail;
+  setStatus('v0.1.0');
+  render();
+}
+
+function setStatus(txt) { document.getElementById('status-badge').textContent = txt; }
+function updateTabs() {
+  document.querySelectorAll('.tab').forEach((el) => el.classList.toggle('active', el.dataset.tab === state.tab));
+}
+function updateDaysPills() {
+  document.querySelectorAll('#days-group .pill').forEach((el) => el.classList.toggle('active', Number(el.dataset.days) === state.days));
+}
+
+function populateSessionSelect() {
+  const sel = document.getElementById('session-select');
+  const list = state.overview?.sessions || [];
+  if (!list.length && state.session) {
+    sel.innerHTML = `<option value="${esc(state.session.id)}">${esc(state.session.title)}</option>`;
+    return;
+  }
+  sel.innerHTML = list.map((s) =>
+    `<option value="${esc(s.id)}" ${s.id === state.selectedConvId ? 'selected' : ''}>${esc(s.title.slice(0, 32))} (${fmtNum(s.stats.current_context)})</option>`
+  ).join('');
+}
+
+function renderDonut(segments, size, strokeW, centerTop, centerSub) {
+  const r = (size - strokeW) / 2;
+  const c = 2 * Math.PI * r;
+  const total = segments.reduce((a, s) => a + Math.max(0, s.value), 0) || 1;
+  let offset = 0;
+  const arcs = segments.map((s) => {
+    const val = Math.max(0, s.value);
+    const len = (val / total) * c;
+    const dash = `${len.toFixed(2)} ${(c - len).toFixed(2)}`;
+    const el = `<circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${s.color}" stroke-width="${strokeW}" stroke-dasharray="${dash}" stroke-dashoffset="${(-offset).toFixed(2)}" transform="rotate(-90 ${size/2} ${size/2})" />`;
+    offset += len;
+    return el;
+  }).join('');
+  return `
+    <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" style="flex-shrink:0">
+      <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="var(--bg-3)" stroke-width="${strokeW}" />
+      ${arcs}
+      <text x="${size/2}" y="${size/2 - 2}" text-anchor="middle" style="fill:var(--fg-1);font-size:${size > 80 ? 13 : 11}px;font-weight:700">${esc(centerTop)}</text>
+      ${centerSub ? `<text x="${size/2}" y="${size/2 + 12}" text-anchor="middle" style="fill:var(--fg-3);font-size:9.5px">${esc(centerSub)}</text>` : ''}
+    </svg>
+  `;
+}
+
+function renderStackBar(comp, total) {
+  const sum = total || Object.values(comp || {}).reduce((a, b) => a + b, 0) || 1;
+  return `<div class="stack-bar">${CAT_6.map((c) => {
+    const v = comp?.[c.key] || 0;
+    const pct = (v / sum) * 100;
+    return pct > 0.3 ? `<div class="stack-seg" style="width:${pct.toFixed(2)}%;background:${c.color}" title="${c.label}: ${fmtNum(v)} (${pct.toFixed(1)}%)"></div>` : '';
+  }).join('')}</div>`;
+}
+
+function renderInsights() {
+  const ov = state.overview;
+  if (!ov) return `<div class="empty">暂无总览数据</div>`;
+  const k = ov.kpis;
+  const daily = ov.daily || [];
+  if (daily.length) {
+    const dr = document.getElementById('date-range-badge');
+    if (dr) dr.textContent = `${daily[0].date} → ${daily[daily.length - 1].date}`;
+  }
+  const maxDailyTok = Math.max(1, ...daily.map((d) => d.billed));
+  const maxDailyCost = Math.max(0.01, ...daily.map((d) => d.cost * USD_TO_CNY));
+  const maxHm = Math.max(1, ...(ov.heatmap || []).map((d) => state.heatmapMetric === 'sessions' ? d.sessions : d.billed));
+
+  const compMap = ov.composition || {};
+  const compTotal = Object.values(compMap).reduce((a, b) => a + b, 0) || 1;
+  const donutSegs = COMP_8.map((c) => ({ value: compMap[c.key] || 0, color: c.color, label: c.label }));
+
+  const outSpeed = k.active_ms > 0 ? Math.round((k.total_output || 0) / (k.active_ms / 1000)) : 0;
+  const tTot = Math.max(1, k.active_ms || 1);
+  const tParts = [
+    { label: '模型等待', color: '#3b82f6', ms: Math.round(tTot * 0.14), sub: `${k.steps || 0} 次` },
+    { label: '模型思考', color: '#6366f1', ms: Math.round(tTot * 0.16), sub: `${k.steps || 0} 次` },
+    { label: '模型回复', color: '#ec4899', ms: Math.round(tTot * 0.04), sub: `${k.turns || 0} 次` },
+    { label: '工具参数', color: '#f59e0b', ms: Math.round(tTot * 0.06), sub: `${k.tool_calls || 0} 次` },
+    { label: '工具执行', color: '#10b981', ms: Math.round(tTot * 0.56), sub: `${k.tool_calls || 0} 次` },
+    { label: '其他开销', color: '#64748b', ms: Math.round(tTot * 0.04), sub: '' },
+  ];
+
+  let skills = [...(ov.top_skills || [])];
+  if (state.skillSort === 'recent') skills.sort((a, b) => (b.last_ts || '').localeCompare(a.last_ts || ''));
+  if (state.skillSearch) skills = skills.filter((s) => s.name.toLowerCase().includes(state.skillSearch.toLowerCase()));
+  const totalSkillLoads = (ov.top_skills || []).reduce((a, s) => a + s.count, 0);
+
+  const allSessions = ov.sessions || [];
+  const workspaces = ['all', ...Array.from(new Set(allSessions.map((s) => s.workspace || 'Antigravity')))];
+  let sessions = allSessions;
+  if (state.wsFilter !== 'all') sessions = sessions.filter((s) => (s.workspace || 'Antigravity') === state.wsFilter);
+  if (state.heatmapDate) sessions = sessions.filter((s) => (s.active_dates || []).includes(state.heatmapDate));
+  if (state.insightFilter) {
+    const { kind, value } = state.insightFilter;
+    sessions = sessions.filter((s) => (s[kind] || []).includes(value));
+  }
+  if (state.sessionSearch) {
+    const q = state.sessionSearch.toLowerCase();
+    sessions = sessions.filter((s) => s.title.toLowerCase().includes(q) || (s.last_message || '').toLowerCase().includes(q) || s.id.toLowerCase().includes(q));
+  }
+  if (state.sessionSort === 'tokens') sessions = [...sessions].sort((a, b) => b.stats.total_billed - a.stats.total_billed);
+  else if (state.sessionSort === 'ctx') sessions = [...sessions].sort((a, b) => b.stats.current_context - a.stats.current_context);
+
+  return `
+    <div class="ov-top">
+      <div class="kpi-3x2">
+        <div class="kpi-box"><div class="kpi-lbl">全部会话</div><div class="kpi-val">${ov.total_sessions}</div><div class="kpi-sub">范围内活跃 ${k.active_sessions} 个</div></div>
+        <div class="kpi-box"><div class="kpi-lbl">Token 消耗</div><div class="kpi-val">${fmtNum(k.total_billed)}</div><div class="kpi-sub">轮次 ${k.turns}</div></div>
+        <div class="kpi-box" title="按人民币参考单价（每百万 Token）：&#10;• Flash 系列：输入 ¥0.72 / 缓存 ¥0.18 / 输出 ¥2.88&#10;• Hydrogen / Pro 系列：输入 ¥2.02 / 缓存 ¥0.50 / 输出 ¥7.92"><div class="kpi-lbl">费用 (?)</div><div class="kpi-val">${fmtCny(k.estimated_cost)}</div><div class="kpi-sub">已计价 ${k.active_sessions}/${ov.total_sessions} 个会话</div></div>
+        <div class="kpi-box"><div class="kpi-lbl">缓存命中</div><div class="kpi-val">${Number(k.cache_hit_pct).toFixed(2)}%</div><div class="kpi-sub">含 ${k.active_sessions} 个会话</div></div>
+        <div class="kpi-box"><div class="kpi-lbl">工具调用</div><div class="kpi-val">${fmtNum(k.tool_calls)}</div><div class="kpi-sub">压缩 ${k.compactions} 次</div></div>
+        <div class="kpi-box"><div class="kpi-lbl">活跃时长</div><div class="kpi-val">${fmtDur(k.active_ms)}</div><div class="kpi-sub">模型调用 ${k.steps || 0} 次</div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd"><div class="card-title">近 ${daily.length} 天用量</div></div>
+        <svg viewBox="0 0 480 140" width="100%" height="140">
+          ${[0, 0.25, 0.5, 0.75, 1].map((p) => {
+            const y = 112 - p * 88;
+            return `<g>
+              <line x1="38" y1="${y}" x2="438" y2="${y}" stroke="var(--bd-1)" stroke-dasharray="3,3" stroke-width="1" />
+              <text x="34" y="${y + 3}" text-anchor="end">${p === 0 ? '0' : fmtNum(maxDailyTok * p)}</text>
+              <text x="442" y="${y + 3}" text-anchor="start">${p === 0 ? '0' : '¥' + (maxDailyCost * p).toFixed(2)}</text>
+            </g>`;
+          }).join('')}
+          ${daily.map((d, i) => {
+            const slot = 390 / Math.max(1, daily.length);
+            const x = 44 + i * slot + slot * 0.15;
+            const bw = Math.max(4, Math.min(13, slot * 0.32));
+            const hTok = (d.billed / maxDailyTok) * 88;
+            const costCny = d.cost * USD_TO_CNY;
+            const hCost = (costCny / maxDailyCost) * 88;
+            return `<g>
+              <rect x="${x}" y="${112 - hTok}" width="${bw}" height="${Math.max(1, hTok)}" rx="2" fill="var(--accent)">
+                <title>${d.date}: ${fmtNum(d.billed)} Token</title>
+              </rect>
+              <rect x="${x + bw + 2}" y="${112 - hCost}" width="${bw}" height="${Math.max(1, hCost)}" rx="2" fill="var(--green)">
+                <title>${d.date}: ${fmtCny(d.cost)}</title>
+              </rect>
+              ${d.billed > 0 && daily.length <= 10 ? `<text x="${x + bw}" y="${107 - Math.max(hTok, hCost)}" text-anchor="middle">${fmtNum(d.billed)}</text>` : ''}
+              ${daily.length <= 10 || i % 4 === 0 ? `<text x="${x + bw}" y="128" text-anchor="middle">${d.date.slice(5)}</text>` : ''}
+            </g>`;
+          }).join('')}
+        </svg>
+        <div class="legend" style="justify-content:flex-end">
+          <span class="legend-item"><span class="dot" style="background:var(--accent)"></span>Token</span>
+          <span class="legend-item"><span class="dot" style="background:var(--green)"></span>费用（仅含支持计价模型的费用）</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="ov-mid">
+      <div class="card">
+        <div class="card-hd"><div class="card-title">Token 统计</div></div>
+        <div class="donut-row">
+          ${renderDonut(donutSegs, 92, 11, fmtNum(k.total_billed), '总用量')}
+          <div class="donut-legend">
+            ${COMP_8.map((c) => {
+              const val = compMap[c.key] || 0;
+              const pct = ((val / compTotal) * 100).toFixed(1);
+              return `<div class="dl-item">
+                <div class="dl-top"><span class="dl-left"><span class="dot" style="background:${c.color}"></span>${c.label}</span><span class="dl-right">${pct}%</span></div>
+                <div class="dl-sub">~${fmtNum(val)}</div>
+              </div>`;
+            }).join('')}
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <div class="card-title">耗时统计</div>
+          <span class="card-sub">团队累计</span>
+          <span class="card-sub">输出速度 ${outSpeed} tok/s</span>
+        </div>
+        <div class="donut-row">
+          ${renderDonut(tParts.map((p) => ({ value: p.ms, color: p.color })), 92, 11, fmtDur(k.active_ms), '活跃时长')}
+          <div class="donut-legend">
+            ${tParts.map((p) => {
+              const pct = ((p.ms / tTot) * 100).toFixed(1);
+              return `<div class="dl-item">
+                <div class="dl-top"><span class="dl-left"><span class="dot" style="background:${p.color}"></span>${p.label}</span><span class="dl-right">${pct}%</span></div>
+                <div class="dl-sub">${fmtDur(p.ms)}${p.sub ? ' · ' + p.sub : ''}</div>
+              </div>`;
+            }).join('')}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="ov-body">
+      <div class="ov-side">
+        <div class="card">
+          <div class="card-hd">
+            <div class="card-title">活跃度</div>
+            <div class="controls">
+              <span class="card-sub">按日期筛选</span>
+              <div class="pill-group">
+                <button class="pill ${state.heatmapMetric === 'sessions' ? 'active' : ''}" data-hmmetric="sessions">会话</button>
+                <button class="pill ${state.heatmapMetric === 'billed' ? 'active' : ''}" data-hmmetric="billed">Token 消耗</button>
+              </div>
+            </div>
+          </div>
+          <div class="hm-wrap">
+            <div class="hm-days"><span>星期一</span><span></span><span>星期三</span><span></span><span>星期五</span><span></span><span></span></div>
+            <div class="heatmap">
+              ${(ov.heatmap || []).map((d) => {
+                const v = state.heatmapMetric === 'sessions' ? d.sessions : d.billed;
+                const alpha = v > 0 ? Math.max(0.22, v / maxHm) : 0;
+                const bg = alpha > 0 ? `rgba(59, 130, 246, ${alpha.toFixed(2)})` : 'var(--bg-3)';
+                return `<div class="hm-cell ${state.heatmapDate === d.date ? 'sel' : ''}" data-hm="${d.date}" style="background:${bg}" title="${d.date}: ${fmtNum(d.billed)} Token, ${d.sessions} 个会话"></div>`;
+              }).join('')}
+            </div>
+          </div>
+          <div class="meta-row" style="justify-content:flex-end;align-items:center;gap:4px">
+            ${state.heatmapDate ? `<button class="btn" id="clear-hm" style="margin-right:auto">清除 (${state.heatmapDate})</button>` : ''}
+            <span>少</span>
+            ${[0.12, 0.3, 0.5, 0.75, 1].map((a) => `<span style="width:9px;height:9px;border-radius:2px;background:rgba(59,130,246,${a});display:inline-block"></span>`).join('')}
+            <span>多</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-hd">
+            <div class="card-title">技能加载</div>
+            <div class="pill-group">
+              <button class="pill ${state.skillSort === 'count' ? 'active' : ''}" data-ssort="count">次数</button>
+              <button class="pill ${state.skillSort === 'recent' ? 'active' : ''}" data-ssort="recent">最近</button>
+            </div>
+          </div>
+          ${skills.length ? `
+            <div class="card-sub">${(ov.top_skills || []).length} 个技能 · ${totalSkillLoads} 次加载</div>
+            <input type="text" id="skill-search" placeholder="搜索技能..." value="${esc(state.skillSearch)}" />
+            <div class="skill-list">
+              ${skills.map((s) => `
+                <div class="skill-row ${state.insightFilter?.value === s.name ? 'active' : ''}" data-ifilter="skills:${esc(s.name)}" title="${s.count} 次加载 · ${s.sessions} 个会话">
+                  <span><span class="dot" style="background:var(--c-skill);margin-right:6px"></span>${esc(s.name)}</span>
+                  <span class="card-sub">×${s.count}</span>
+                </div>
+              `).join('')}
+            </div>
+          ` : `<div class="card-sub" style="padding:12px 0;text-align:center">统计范围内暂无技能加载 — 加载技能后，这里会按名称列出次数与最近加载</div>`}
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <div class="card-title">会话 <span class="badge">${sessions.length}</span></div>
+          <div class="controls">
+            <input type="text" id="session-search" placeholder="搜索标题 / 目录 / 最后消息..." value="${esc(state.sessionSearch)}" style="min-width:190px" />
+            <span class="badge">全部会话 (显示 ${sessions.length}/${allSessions.length})</span>
+            <div class="pill-group">
+              <button class="pill ${state.sessionSort === 'recent' ? 'active' : ''}" data-ssortby="recent">最近更新</button>
+              <button class="pill ${state.sessionSort === 'tokens' ? 'active' : ''}" data-ssortby="tokens">Token 总用量</button>
+              <button class="pill ${state.sessionSort === 'ctx' ? 'active' : ''}" data-ssortby="ctx">当前 Context</button>
+            </div>
+          </div>
+        </div>
+        <div class="chips">
+          ${workspaces.map((w) => `<span class="chip ${state.wsFilter === w ? 'active' : ''}" data-ws="${esc(w)}">${w === 'all' ? '全部 ' + allSessions.length : esc(w)}</span>`).join('')}
+          ${state.insightFilter ? `<button class="btn" id="clear-ifilter">清除筛选: ${esc(state.insightFilter.value)}</button>` : ''}
+        </div>
+        <div class="session-grid">
+          ${sessions.map((s) => {
+            const c = s.current_composition || {};
+            const segs = CAT_6.map((m) => ({ value: c[m.key] || 0, color: m.color }));
+            return `
+              <div class="s-card" data-open-session="${esc(s.id)}">
+                <div class="s-card-hd">
+                  <div style="min-width:0;flex:1">
+                    <div class="s-title" title="${esc(s.title)}">${esc(s.title)}</div>
+                    <div style="margin-top:3px"><span class="badge">${esc(s.workspace || 'Antigravity')}</span></div>
+                  </div>
+                  <div class="s-time">${fmtRel(s.last_ts)}<br/>${esc((s.last_ts || '').slice(0, 10))}</div>
+                </div>
+                <div class="s-mid">
+                  ${renderDonut(segs, 58, 7, fmtNum(s.stats.current_context), s.stats.context_pct + '%')}
+                  <div class="s-metrics">
+                    <div class="s-mrow"><span>轮次</span><b>${s.stats.turns} 轮 ${s.stats.steps} 步</b></div>
+                    <div class="s-mrow"><span>Token 总用量</span><b>${fmtNum(s.stats.total_billed)}</b></div>
+                    <div class="s-mrow"><span>总预估费用</span><b>${fmtCny(s.stats.estimated_cost)}</b></div>
+                  </div>
+                </div>
+                <div class="s-last">最后消息：${esc(s.last_message || s.primary_model)}</div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderSession() {
+  const s = state.session;
+  if (!s) return `<div class="empty">请在右上角选择一个会话</div>`;
+  const st = s.stats;
+  const steps = s.steps || [];
+  const activeStep = steps.find((x) => x.step === state.selectedStepIdx) || steps[steps.length - 1];
+
+  let bars = steps;
+  if (state.trendGranularity === 'turn') {
+    const byTurn = new Map();
+    for (const x of steps) byTurn.set(x.turn, x);
+    bars = Array.from(byTurn.values());
+  }
+  if (state.trendOverview && bars.length > 60) {
+    const stride = Math.ceil(bars.length / 60);
+    bars = bars.filter((_, i) => i % stride === 0 || i === bars.length - 1);
+  }
+  const maxTrend = Math.max(1, ...bars.map((b) => state.trendMode === 'delta' ? Math.abs(b.delta) : b.context_total));
+
+  const filteredEvents = (s.events || []).filter((e) => state.eventFilter === 'all' || e.kind === state.eventFilter);
+  const filteredFiles = (s.file_activity || []).filter((f) => {
+    if (state.fileFilter === 'read' && !f.read) return false;
+    if (state.fileFilter === 'written' && !f.written) return false;
+    if (state.fileFilter === 'edited' && !f.edited) return false;
+    if (state.fileSearch && !f.path.toLowerCase().includes(state.fileSearch.toLowerCase())) return false;
+    return true;
+  });
+  const filteredCmds = (s.commands || []).filter((c) => {
+    if (!state.cmdFilter) return true;
+    const q = state.cmdFilter.toLowerCase();
+    return c.program.toLowerCase().includes(q) || c.command.toLowerCase().includes(q) || c.summary.toLowerCase().includes(q);
+  });
+
+  return `
+    <div class="grid-3">
+      <div class="card">
+        <div class="card-hd"><div class="card-title">上下文统计</div><span class="badge">${esc(s.primary_model)}</span></div>
+        <div class="meta-row"><span>轮次 / 步骤</span><b>${st.turns} / ${st.steps}</b></div>
+        <div class="meta-row"><span>工具调用 / 子智能体</span><b>${st.tool_calls} / ${st.subagents}</b></div>
+        <div class="meta-row"><span>压缩 / 错误</span><b>${st.compactions} / ${st.errors}</b></div>
+        <div class="meta-row"><span>预估费用</span><b>${fmtCny(st.estimated_cost)}</b></div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><div class="card-title">Token 统计</div><span class="badge">缓存命中 ${st.cache_hit_pct}%</span></div>
+        <div class="meta-row"><span>总计费</span><b>${fmtNum(st.total_billed)}</b></div>
+        <div class="meta-row"><span>未缓存输入</span><b>${fmtNum(st.total_input)}</b></div>
+        <div class="meta-row"><span>缓存读取</span><b>${fmtNum(st.total_cache)}</b></div>
+        <div class="meta-row"><span>输出</span><b>${fmtNum(st.total_output)}</b></div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><div class="card-title">耗时统计</div></div>
+        <div class="meta-row"><span>总跨度</span><b>${fmtDur(st.wall_ms)}</b></div>
+        <div class="meta-row"><span>活跃处理时长</span><b>${fmtDur(st.active_ms)}</b></div>
+        <div class="meta-row"><span>平均步间隔</span><b>${st.steps ? fmtDur(st.active_ms / st.steps) : '0s'}</b></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-hd">
+        <div class="card-title">当前上下文窗口</div>
+        <span class="card-sub">${fmtNum(st.current_context)} / ${fmtNum(s.window_size)} (${st.context_pct}%)</span>
+      </div>
+      ${renderStackBar(s.current_composition, s.window_size)}
+      <div class="legend">
+        ${CAT_6.map((c) => `<span class="legend-item"><span class="dot" style="background:${c.color}"></span>${c.label}: ${fmtNum(s.current_composition?.[c.key] || 0)}</span>`).join('')}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-hd">
+        <div class="card-title">上下文趋势（${bars.length} ${state.trendGranularity === 'step' ? '步' : '轮'}）</div>
+        <div class="controls">
+          <button class="btn ${state.trendGranularity === 'step' ? 'active' : ''}" data-gran="step">按步</button>
+          <button class="btn ${state.trendGranularity === 'turn' ? 'active' : ''}" data-gran="turn">按轮</button>
+          <button class="btn ${state.trendMode === 'total' ? 'active' : ''}" data-tmode="total">累计</button>
+          <button class="btn ${state.trendMode === 'delta' ? 'active' : ''}" data-tmode="delta">增量</button>
+          <button class="btn ${state.trendOverview ? 'active' : ''}" id="toggle-toverview">总览</button>
+        </div>
+      </div>
+      <div style="overflow-x:auto">
+        <svg viewBox="0 0 ${Math.max(420, bars.length * 14 + 30)} 150" width="100%" height="150">
+          ${bars.map((b, i) => {
+            const x = 15 + i * Math.max(6, Math.min(18, 600 / Math.max(1, bars.length)));
+            const w = Math.max(4, Math.min(14, 520 / Math.max(1, bars.length)));
+            const val = state.trendMode === 'delta' ? b.delta : b.context_total;
+            const h = Math.max(2, (Math.abs(val) / maxTrend) * 105);
+            const y = state.trendMode === 'delta' ? (val >= 0 ? 75 - h * 0.6 : 75) : (125 - h);
+            const hScaled = state.trendMode === 'delta' ? h * 0.6 : h;
+            const fill = b.step === state.selectedStepIdx ? '#fff' : (val < 0 ? '#10b981' : (b.flags?.includes('compaction') ? '#a855f7' : 'var(--accent)'));
+            const hasFlag = (b.flags || []).length > 0;
+            return `<g class="trend-bar" data-step="${b.step}" style="cursor:pointer">
+              <rect x="${x}" y="${y}" width="${w}" height="${Math.max(2, hScaled)}" rx="2" fill="${fill}" opacity="0.9">
+                <title>步骤 #${b.step} (第 ${b.turn} 轮): ${fmtNum(b.context_total)} 上下文, Δ${b.delta >= 0 ? '+' : ''}${fmtNum(b.delta)}</title>
+              </rect>
+              ${hasFlag ? `<circle cx="${x + w / 2}" cy="10" r="3" fill="#f59e0b" />` : ''}
+            </g>`;
+          }).join('')}
+        </svg>
+      </div>
+      ${activeStep ? `
+        <div class="step-brief">
+          <div class="meta-row">
+            <b>步骤 #${activeStep.step} · 第 ${activeStep.turn} 轮 · ${esc(activeStep.model)}</b>
+            <span>上下文 ${fmtNum(activeStep.context_total)}（未缓存 ${fmtNum(activeStep.input_tokens)} + 缓存 ${fmtNum(activeStep.cache_read_tokens)} + 输出 ${fmtNum(activeStep.output_tokens)}）</span>
+          </div>
+          ${activeStep.brief?.user ? `<div><b>用户输入：</b>${esc(activeStep.brief.user)}</div>` : ''}
+          <div><b>调用工具：</b>${activeStep.brief?.tools?.length ? esc(activeStep.brief.tools.join(', ')) : '无'} · <b>标记：</b>${activeStep.flags?.length ? esc(activeStep.flags.join(', ')) : '无'}</div>
+          ${activeStep.brief?.answer ? `<div><b>助手回复：</b>${esc(activeStep.brief.answer)}</div>` : ''}
+        </div>
+      ` : ''}
+    </div>
+
+    <div class="card">
+      <div class="card-hd">
+        <div class="card-title">上下文浏览器 ${activeStep ? `（步骤 #${activeStep.step}）` : ''}</div>
+        <div class="controls">
+          <button class="btn" id="load-step-btn" ${activeStep ? '' : 'disabled'}>加载完整 DNA 内容</button>
+          <input type="text" id="browser-search" placeholder="搜索条目..." value="${esc(state.browserSearch)}" />
+        </div>
+      </div>
+      ${state.stepDetail && state.stepDetail.step_index === activeStep?.step ? `
+        <div>
+          ${(state.stepDetail.items || []).filter((it) => !state.browserSearch || it.title.toLowerCase().includes(state.browserSearch.toLowerCase()) || it.content.toLowerCase().includes(state.browserSearch.toLowerCase())).map((it) => `
+            <div class="dna-item">
+              <div class="dna-hd" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? 'block' : 'none'">
+                <span><span class="badge">#${it.pos}</span> <span class="badge">${esc(it.category)}</span> <b>${esc(it.title)}</b></span>
+                <span class="card-sub">步骤 ${it.step} · ~${fmtNum(it.tokens)} Token</span>
+              </div>
+              <div class="dna-body" style="display:none">${esc(it.content)}</div>
+            </div>
+          `).join('')}
+        </div>
+      ` : `<div class="card-sub">点击「加载完整 DNA 内容」查看该步骤从 transcript_full.jsonl 重建的完整提示词、思考过程、工具参数与输出。</div>`}
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-hd">
+          <div class="card-title">上下文事件（${filteredEvents.length}）</div>
+          <div class="chips">
+            ${Object.entries(EVENT_LABELS).map(([k, lbl]) => `<span class="chip ${state.eventFilter === k ? 'active' : ''}" data-efilter="${k}">${lbl}</span>`).join('')}
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>步骤</th><th>类型</th><th>详情</th></tr></thead>
+            <tbody>
+              ${filteredEvents.map((e) => `<tr><td class="mono">#${e.step}</td><td><span class="badge">${esc(EVENT_LABELS[e.kind] || e.kind)}</span></td><td><b>${esc(e.title)}</b><div class="card-sub">${esc(e.detail)}</div></td></tr>`).join('') || '<tr><td colspan="3" class="empty">暂无事件</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <div class="card-title">文件活动（${filteredFiles.length}）</div>
+          <div class="controls">
+            ${[['all', '全部'], ['read', '读取'], ['written', '写入'], ['edited', '编辑']].map(([f, lbl]) => `<button class="btn ${state.fileFilter === f ? 'active' : ''}" data-ffilter="${f}">${lbl}</button>`).join('')}
+            <input type="text" id="file-search" placeholder="筛选路径..." value="${esc(state.fileSearch)}" />
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>文件路径</th><th>读/写/改</th><th>行数变化</th></tr></thead>
+            <tbody>
+              ${filteredFiles.map((f) => `<tr><td class="mono">${esc(f.path)}</td><td>${f.read}/${f.written}/${f.edited}</td><td><span class="ok">+${f.added_lines}</span> <span class="err">-${f.removed_lines}</span></td></tr>`).join('') || '<tr><td colspan="3" class="empty">暂无文件活动</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-hd">
+        <div class="card-title">命令执行（${filteredCmds.length}）</div>
+        <input type="text" id="cmd-filter" placeholder="筛选程序或命令..." value="${esc(state.cmdFilter)}" />
+      </div>
+      <div class="chips">
+        ${Object.entries(s.programs || {}).map(([p, c]) => `<span class="chip ${state.cmdFilter === p ? 'active' : ''}" data-prog="${esc(p)}">${esc(p)} <b>${c}</b></span>`).join('')}
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>步骤</th><th>程序</th><th>状态</th><th>命令内容</th></tr></thead>
+          <tbody>
+            ${filteredCmds.map((c) => `<tr><td class="mono">#${c.step}</td><td class="mono">${esc(c.program)}</td><td class="${c.status === 'ok' ? 'ok' : c.status === 'error' ? 'err' : 'warn'}">${esc(c.status)}${c.exit_code !== null ? ' (' + c.exit_code + ')' : ''}</td><td class="mono">${esc(c.command)}</td></tr>`).join('') || '<tr><td colspan="4" class="empty">暂无命令执行</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+function renderFleet() {
+  const fl = state.fleet;
+  if (!fl || !fl.nodes?.length) return `<div class="empty">当前会话暂无多 Agent 编队数据</div>`;
+  const totBilled = fl.nodes.reduce((a, n) => a + (n.stats?.total_billed || 0), 0);
+  const totCost = fl.nodes.reduce((a, n) => a + (n.stats?.estimated_cost || 0), 0);
+  const totSteps = fl.nodes.reduce((a, n) => a + (n.stats?.steps || 0), 0);
+
+  let tl = fl.timeline || [];
+  if (state.fleetAgentFilter) tl = tl.filter((t) => t.agent_id === state.fleetAgentFilter || t.target === state.fleetAgentFilter);
+  if (state.fleetOrder === 'desc') tl = [...tl].reverse();
+
+  return `
+    <div class="grid-kpi">
+      <div class="card"><div class="kpi-lbl">编队 Agent 数</div><div class="kpi-val">${fl.nodes.length}</div></div>
+      <div class="card"><div class="kpi-lbl">家族总步数</div><div class="kpi-val">${totSteps}</div></div>
+      <div class="card"><div class="kpi-lbl">家族 Token 消耗</div><div class="kpi-val">${fmtNum(totBilled)}</div></div>
+      <div class="card"><div class="kpi-lbl">家族预估费用</div><div class="kpi-val">${fmtCny(totCost)}</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-hd">
+        <div class="card-title">Agent 网络</div>
+        ${state.fleetAgentFilter ? `<button class="btn" id="clear-fagent">显示全部 Agent</button>` : '<span class="card-sub">单击卡片筛选时间线，双击跳转该 Agent 上下文</span>'}
+      </div>
+      <div class="fleet-grid">
+        ${fl.nodes.map((n) => `
+          <div class="agent-card ${n.is_current ? 'current' : ''}" data-fleet-agent="${esc(n.id)}">
+            <div class="meta-row"><b>${esc(n.role)}</b><span class="badge">${esc(n.model)}</span></div>
+            <div class="s-title" title="${esc(n.title)}">${esc(n.title)}</div>
+            ${renderStackBar(n.current_composition, n.stats.current_context)}
+            <div class="meta-row"><span>上下文 ${fmtNum(n.stats.current_context)} (${n.stats.context_pct}%)</span><span>${n.stats.steps} 步</span><span>${fmtCny(n.stats.estimated_cost)}</span></div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-hd">
+        <div class="card-title">跨 Agent 协作时间线（${tl.length}）</div>
+        <button class="btn" id="toggle-forder">${state.fleetOrder === 'asc' ? '最早优先' : '最新优先'}</button>
+      </div>
+      <div class="table-wrap">
+        ${tl.map((ev) => `
+          <div class="timeline-row">
+            <span class="mono" style="min-width:75px">${esc((ev.ts || '').slice(11, 19))}</span>
+            <span class="badge">${esc(ev.kind)}</span>
+            <span class="mono" style="min-width:70px">${esc((ev.agent_id || '').slice(0, 8))}</span>
+            <span>${esc(ev.summary)}</span>
+          </div>
+        `).join('') || '<div class="empty">暂无协作事件</div>'}
+      </div>
+    </div>
+  `;
+}
+
+function render() {
+  const main = document.getElementById('main-view');
+  if (state.tab === 'insights') main.innerHTML = renderInsights();
+  else if (state.tab === 'session') main.innerHTML = renderSession();
+  else main.innerHTML = renderFleet();
+  bindEvents();
+}
+
+function bindEvents() {
+  document.querySelectorAll('[data-hmmetric]').forEach((el) => el.onclick = () => { state.heatmapMetric = el.dataset.hmmetric; render(); });
+  document.querySelectorAll('[data-hm]').forEach((el) => el.onclick = () => { state.heatmapDate = state.heatmapDate === el.dataset.hm ? null : el.dataset.hm; render(); });
+  const chm = document.getElementById('clear-hm'); if (chm) chm.onclick = () => { state.heatmapDate = null; render(); };
+
+  document.querySelectorAll('[data-ssort]').forEach((el) => el.onclick = () => { state.skillSort = el.dataset.ssort; render(); });
+  const sks = document.getElementById('skill-search'); if (sks) sks.oninput = (e) => { state.skillSearch = e.target.value; render(); };
+
+  document.querySelectorAll('[data-ifilter]').forEach((el) => el.onclick = () => {
+    const [kind, value] = el.dataset.ifilter.split(':');
+    state.insightFilter = (state.insightFilter?.value === value) ? null : { kind, value };
+    render();
+  });
+  const cif = document.getElementById('clear-ifilter'); if (cif) cif.onclick = () => { state.insightFilter = null; render(); };
+  document.querySelectorAll('[data-ws]').forEach((el) => el.onclick = () => { state.wsFilter = el.dataset.ws; render(); });
+  document.querySelectorAll('[data-ssortby]').forEach((el) => el.onclick = () => { state.sessionSort = el.dataset.ssortby; render(); });
+
+  const ss = document.getElementById('session-search'); if (ss) ss.oninput = (e) => { state.sessionSearch = e.target.value; render(); };
+  document.querySelectorAll('[data-open-session]').forEach((el) => el.onclick = async () => {
+    state.tab = 'session'; updateTabs(); await loadSession(el.dataset.openSession);
+  });
+
+  document.querySelectorAll('[data-gran]').forEach((el) => el.onclick = () => { state.trendGranularity = el.dataset.gran; render(); });
+  document.querySelectorAll('[data-tmode]').forEach((el) => el.onclick = () => { state.trendMode = el.dataset.tmode; render(); });
+  const tov = document.getElementById('toggle-toverview'); if (tov) tov.onclick = () => { state.trendOverview = !state.trendOverview; render(); };
+  document.querySelectorAll('.trend-bar').forEach((el) => el.onclick = () => { state.selectedStepIdx = Number(el.dataset.step); state.stepDetail = null; render(); });
+
+  const lsb = document.getElementById('load-step-btn');
+  if (lsb) lsb.onclick = () => loadStepDetail(state.selectedConvId, state.selectedStepIdx);
+  const bs = document.getElementById('browser-search'); if (bs) bs.oninput = (e) => { state.browserSearch = e.target.value; render(); };
+
+  document.querySelectorAll('[data-efilter]').forEach((el) => el.onclick = () => { state.eventFilter = el.dataset.efilter; render(); });
+  document.querySelectorAll('[data-ffilter]').forEach((el) => el.onclick = () => { state.fileFilter = el.dataset.ffilter; render(); });
+  const fs = document.getElementById('file-search'); if (fs) fs.oninput = (e) => { state.fileSearch = e.target.value; render(); };
+  const cf = document.getElementById('cmd-filter'); if (cf) cf.oninput = (e) => { state.cmdFilter = e.target.value; render(); };
+  document.querySelectorAll('[data-prog]').forEach((el) => el.onclick = () => { state.cmdFilter = state.cmdFilter === el.dataset.prog ? '' : el.dataset.prog; render(); });
+
+  document.querySelectorAll('[data-fleet-agent]').forEach((el) => {
+    el.onclick = () => { state.fleetAgentFilter = state.fleetAgentFilter === el.dataset.fleetAgent ? null : el.dataset.fleetAgent; render(); };
+    el.ondblclick = async () => { state.tab = 'session'; updateTabs(); await loadSession(el.dataset.fleetAgent); };
+  });
+  const cfa = document.getElementById('clear-fagent'); if (cfa) cfa.onclick = () => { state.fleetAgentFilter = null; render(); };
+  const tfo = document.getElementById('toggle-forder'); if (tfo) tfo.onclick = () => { state.fleetOrder = state.fleetOrder === 'asc' ? 'desc' : 'asc'; render(); };
+}
+
+document.querySelectorAll('.tab').forEach((el) => {
+  el.onclick = async () => {
+    state.tab = el.dataset.tab;
+    updateTabs();
+    if (state.tab === 'insights' && !state.overview) await loadOverview();
+    else if (state.tab === 'session' && (!state.session || state.session.id !== state.selectedConvId)) await loadSession(state.selectedConvId);
+    else if (state.tab === 'fleet') await loadFleet(state.selectedConvId);
+    else render();
+  };
+});
+
+document.querySelectorAll('#days-group .pill').forEach((el) => {
+  el.onclick = () => {
+    if (state.tab !== 'insights') { state.tab = 'insights'; updateTabs(); }
+    loadOverview(Number(el.dataset.days));
+  };
+});
+
+document.getElementById('session-select').onchange = async (e) => {
+  state.selectedConvId = e.target.value;
+  if (state.tab === 'session') await loadSession(state.selectedConvId);
+  else if (state.tab === 'fleet') await loadFleet(state.selectedConvId);
+};
+
+document.getElementById('refresh-btn').onclick = async () => {
+  if (state.tab === 'insights') await loadOverview();
+  else if (state.tab === 'session') await loadSession(state.selectedConvId);
+  else await loadFleet(state.selectedConvId);
+};
+
+try {
+  await app.connect();
+  applyTheme(app.getHostContext());
+  setStatus('v0.1.0');
+} catch (err) {
+  setStatus('连接失败');
+  document.getElementById('main-view').innerHTML = `<div class="empty err">连接 MCP App 失败：${esc(err?.message || err)}</div>`;
+}
+</script>
+</body>
+</html>
